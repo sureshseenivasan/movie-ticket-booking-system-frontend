@@ -1,0 +1,18 @@
+# Place this file at the ROOT of your git repo (same level as the
+# "client" and "server" folders) -- not inside client/ itself.
+#
+# Adjust "name" to whatever you want the service called in Render.
+# If your frontend project is not in a folder named "client", change
+# rootDir to match.
+
+services:
+  - type: web
+    name: moviebook-frontend
+    runtime: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
