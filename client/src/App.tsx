@@ -20,6 +20,7 @@ import Checkout from "./pages/Checkout";
 
 import MyBookings from "./pages/Mybookings";
 import AdminPosters from "./pages/AdminPosters";
+import AdminTheaters from "./pages/AdminTheaters";
 
 function App() {
 
@@ -82,6 +83,7 @@ function App() {
               }
             />
             <Route path="/admin/posters" element={<AdminPosters />} />
+            <Route path="/admin/theaters" element={<AdminTheaters />} />
           </Routes>
 
 

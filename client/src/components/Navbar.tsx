@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Link, useNavigate } from "react-router-dom";
+
+import api from "../api/api";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -10,6 +12,32 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
+
+  // Admin links are shown only when the server confirms this user is an admin
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+
+      return;
+    }
+
+    let cancelled = false;
+
+    api
+      .get("/admin/check")
+      .then(() => {
+        if (!cancelled) setIsAdmin(true);
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -72,6 +100,18 @@ const Navbar = () => {
                 My Bookings
               </Link>
 
+              {isAdmin && (
+                <>
+                  <Link to="/admin/theaters" className={linkClass}>
+                    Theaters
+                  </Link>
+
+                  <Link to="/admin/posters" className={linkClass}>
+                    Posters
+                  </Link>
+                </>
+              )}
+
               <span className="hidden items-center gap-2 sm:flex">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f84464] text-sm font-bold">
                   {user.name?.charAt(0).toUpperCase() || "U"}
@@ -99,8 +139,6 @@ const Navbar = () => {
               >
                 Register
               </Link>
-
-                <Link to="/admin/posters" className={linkClass}>Posters</Link>
             </>
           )}
         </div>

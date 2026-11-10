@@ -1,0 +1,161 @@
+# MovieBook — Project Documentation
+
+## 1. Overview
+
+MovieBook is a full-stack movie ticket booking web application. Users browse movies, choose a showtime and city, select seats on an interactive seat map, pay online (Razorpay) or at the theater, and receive their booking confirmation by email and SMS with a downloadable PDF ticket. Admin users can manage movie posters and add new theaters.
+
+## 2. Live Links
+
+| | |
+|---|---|
+| Live Frontend | `https://your-site-name.netlify.app` |
+| Live Backend API | `https://your-backend-name.onrender.com/api` |
+| Frontend Repository | `https://github.com/your-username/movie-ticket-booking-system-frontend` |
+| Backend Repository | `https://github.com/your-username/movie-ticket-booking-system-backend` |
+
+## 3. Demo Credentials
+
+**Regular user** (book tickets, view/cancel bookings):
+```
+Email:    demo@moviebook.com
+Password: Demo@1234
+```
+
+**Admin** (manage posters, add/delete theaters):
+```
+Email:    admin@moviebook.com
+Password: Admin@1234
+```
+
+> These accounts are created by `npx tsx scripts/seedDemoUsers.ts` (see Section 7). They are demo accounts only: the admin can add or delete theaters and change movie posters, nothing more.
+
+## 4. Architecture
+
+```
+┌─────────────┐        HTTPS/JSON        ┌──────────────┐
+│   Frontend   │ ────────────────────────▶│   Backend    │
+│ React + Vite │◀──────────────────────── │Express + TS  │
+│  (Netlify)   │                           │   (Render)   │
+└─────────────┘                           └──────┬───────┘
+                                                   │
+                        ┌──────────────────────────┼──────────────────────────┐
+                        ▼                           ▼                          ▼
+                 ┌─────────────┐           ┌─────────────┐           ┌─────────────┐
+                 │  MongoDB    │           │  Razorpay   │           │   Resend /  │
+                 │   Atlas     │           │  (payments) │           │   Twilio    │
+                 └─────────────┘           └─────────────┘           └─────────────┘
+                                                                       (email / SMS)
+
+External read-only data source: TMDB (movie posters), fetched by a backend script,
+not called live by the running app.
+```
+
+## 5. Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React, Vite, TypeScript, Tailwind CSS, React Router, Axios, jsPDF |
+| Backend | Node.js, Express, TypeScript, Mongoose |
+| Database | MongoDB (Atlas) |
+| Auth | JWT (JSON Web Tokens) |
+| Payments | Razorpay (Checkout.js + server-side order creation and signature verification) |
+| Email | Resend |
+| SMS | Twilio (optional) |
+| Hosting | Netlify (frontend), Render (backend) |
+
+## 6. Features
+
+- Browse, search, and filter movies by title, genre, language, and city
+- Showtimes grouped by date, theater, and time with live seat-availability coloring
+- 12×12 interactive seat map (144 seats/screen)
+- **Real payment processing via Razorpay** (UPI, cards, netbanking, wallets — all handled by Razorpay's own secure checkout, no card data touches this app's servers)
+- Pay-at-theater (cash) option for offline payment
+- Booking confirmation screen with a downloadable PDF ticket
+- Automatic booking confirmation by email, with optional SMS
+- "My Bookings" page: view, download ticket, and cancel any booking
+- **Admin: Manage Theaters** — add new theaters, screens, and seat counts
+- **Admin: Manage Posters** — correct a movie's poster by pasting an image URL
+- JWT-based login/register
+
+## 7. Admin Guide
+
+### Creating the demo accounts
+
+Admin status is stored on the user (`role: "admin"`) and is never granted by registration. The demo accounts are created by a script:
+
+```bash
+cd server
+npx tsx scripts/seedDemoUsers.ts
+```
+
+It creates (or repairs) `demo@moviebook.com` and `admin@moviebook.com` using the database in `MONGODB_URI`, so if the deployed backend uses the same database the accounts work on the live site too. To make any other registered user an admin, run `npx tsx scripts/makeAdmin.ts their@email.com`.
+
+### Managing theaters
+
+Log in as the admin. A **Theaters** link appears in the top bar (it is hidden for normal users); it opens `/admin/theaters`, where you can:
+- Add a theater: name, city/location, address, number of screens, seats per screen.
+- Tick "create showtimes" (on by default) so the new theater gets showtimes for the next 7 days for the top-rated movies. The city filter and movie pages are built from showtimes, so this is what makes a new theater show up on the site.
+- Delete a theater. A theater that already has showtimes cannot be deleted.
+
+### Managing posters
+
+Go to `/admin/posters`. Paste a correct image URL (e.g. copied from Wikipedia or TMDB) for any movie and save — updates instantly.
+
+## 8. Payment Flow (Razorpay)
+
+1. User selects seats and proceeds to checkout.
+2. A booking is created on the backend with `paymentStatus: "PENDING"`.
+3. The backend creates a Razorpay order (`POST /api/payments/create-order`) for the booking's total amount.
+4. Razorpay's Checkout.js modal opens in the browser, where the user completes payment by any method Razorpay supports.
+5. On success, Razorpay returns a payment ID, order ID, and signature to the frontend.
+6. The frontend sends these to the backend (`POST /api/payments/verify`), which **re-computes the signature server-side** using the Razorpay secret key and compares it — this is what proves the payment is genuine and wasn't forged client-side.
+7. If verification succeeds, the booking's `paymentStatus` is updated to `"PAID"` and the confirmation screen is shown.
+
+### Testing payments (Razorpay test mode)
+
+With `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` set to **test mode** keys (starting with `rzp_test_`), use Razorpay's published test card to complete a payment without real money:
+```
+Card number: 4111 1111 1111 1111
+Expiry:      any future date
+CVV:         any 3 digits
+```
+For UPI testing in test mode, Razorpay's checkout simulates success automatically for any UPI ID ending in `@razorpay`.
+
+## 9. Database Schema (collections)
+
+| Collection | Key fields |
+|---|---|
+| `users` | name, email, password (hashed), phone, role (`user` or `admin`) |
+| `movies` | title, description, genre[], language, releaseDate, duration, poster, rating |
+| `theaters` | name, location, address, screens: [{ name, totalSeats }] |
+| `showtimes` | movie, theater, screen, showDate, startTime, endTime, price, totalSeats, availableSeats, bookingSeats[] |
+| `seats` | showtime, seatNumber, row, seatType, price, status |
+| `bookings` | user, showtime, seats[], totalAmount, bookingStatus, paymentStatus, bookingNumber, razorpayOrderId, razorpayPaymentId |
+
+## 10. API Reference
+
+See `server/README.md` for the full endpoint table. New endpoints added for this update:
+
+| Route | Method | Auth | Description |
+|---|---|---|---|
+| `/admin/check` | GET | ✓ Admin | Confirms the logged-in user is an admin |
+| `/admin/theaters` | GET | ✓ Admin | List theaters |
+| `/admin/theaters` | POST | ✓ Admin | Create a theater (optionally with showtimes) |
+| `/admin/theaters/:id` | PUT | ✓ Admin | Update a theater |
+| `/admin/theaters/:id` | DELETE | ✓ Admin | Delete a theater (blocked if it has showtimes) |
+| `/admin/movies/:id/poster` | PATCH | ✓ Admin | Update a movie's poster URL |
+| `/seat-locks` | POST | ✓ | Lock seats for 10 minutes before online payment |
+| `/payments/create-order` | POST | ✓ | Create a Razorpay order for a booking |
+| `/payments/verify` | POST | ✓ | Verify a completed Razorpay payment |
+
+## 11. Deployment
+
+See `client/README.md` and `server/README.md` for full Netlify/Render setup steps, including required environment variables (`VITE_API_URL`, `VITE_RAZORPAY_KEY_ID` on the frontend; `MONGODB_URI`, `JWT_SECRET`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RESEND_API_KEY`, `TWILIO_*`, `TMDB_API_KEY` on the backend).
+
+## 12. Known Limitations
+
+- Admin accounts are created by a backend script, not through the UI — intentional, to keep admin grants deliberate. The demo admin credentials are published in this document, so remove or change that account after the project has been reviewed.
+- Resend's free sandbox can only email the address you signed up with on Resend, until a custom domain is verified.
+- Twilio's trial tier can only SMS verified numbers.
+- Render's free tier sleeps after 15 minutes of inactivity; the first request after idle time may take 30-60 seconds.
+- Seat layout is fixed at 12×12 per screen.

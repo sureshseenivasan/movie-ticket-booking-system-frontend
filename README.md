@@ -17,7 +17,14 @@ Email:    demo@moviebook.com
 Password: Demo@1234
 ```
 
-> Register this account on the live site first if it doesn't already exist, or replace these with real demo credentials before sharing. Don't use your own personal login here.
+**Admin** (add/delete theaters, update movie posters — adds a "Theaters" and "Posters" link to the top bar):
+
+```
+Email:    admin@moviebook.com
+Password: Admin@1234
+```
+
+> Both accounts are created by `npx tsx scripts/seedDemoUsers.ts` in the backend repository. They are demo accounts only.
 
 ## Tech Stack
 
